@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!--[if IE]>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'><![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Syntax helper</title>
+    <link type="text/css" rel="stylesheet" media="all" href="bootstrap.css">
+    <link type="text/css" rel="stylesheet" media="all" href="codemirror.css">
+    <style>
+        #code {
+            width: 800px;
+            height: 250px;
+        }
+    </style>
+</head>
+<body>
+    <form id="what">
+        <p>
+            Mode: <input id="mode" class="store-state"/>
+        </p>
+        <p>
+            <textarea id="code" class="store-state"></textarea>
+        </p>
+        <div id="output" class="cm-s-default">
+        
+        </div>
+    </form>
+
+
+    <script src="codemirror.js"></script>
+    <script src="codemirror-pipes.js"></script>
+    <script src="codemirror-esper.js"></script>
+    <script src="codemirror-span.js"></script>
+    <script src="jquery-2.1.1.min.js"></script>
+    <script src="underscore-min.js"></script>
+    
+    <script>
+        var colorize = function() {
+            CodeMirror.runMode($('#code').val(), $('#mode').val(), $('#output')[0]); 
+            $('#code').trigger('change');
+            $('#mode').trigger('change');
+        };
+    
+        $(function() {
+            $('#code').on('keydown', _.debounce(colorize, 1000));
+            $('#mode').on('keydown', _.debounce(colorize, 1000));
+            
+            $('#code').keydown(function (e) {
+
+              if (e.ctrlKey && e.keyCode == 13) {
+                colorize();
+              }
+            });
+        });
+        
+        (function($) {
+            var InputStorage = {
+                /**
+                 * Check if the browser supports storage.
+                 */
+                storageEnabled : typeof(Storage) !== "undefined",
+         
+                getElementStorageKey : function($element) {
+                    if ($element.data("storage-name")) {
+                        return "elements-" + $element.data("storage-name");
+                    } else if ($element.attr("id")) {
+                        return "elements-id-" + $element.attr("id");
+                    }
+                    return null;
+                },
+         
+                getElementValue : function($element) {
+                    // $element - single element!
+                    if ($element.is(":radio, :checkbox")) {
+                        return $element.is(":checked") ? "true" : "false";
+                    }
+                    else if ($element.is("input, textarea, select")) {
+                        return $element.val();
+                    }
+                },
+         
+                storeElementState : function($element) {
+                    // $element - single element!
+                    if (!this.storageEnabled) return;
+                    var key = this.getElementStorageKey($element);
+                    if (!key) {
+                        console.log("Cannot store element state:");
+                        console.log($element);
+                        return;
+                    }
+         
+                    // Saving by different element types
+                    value = this.getElementValue($element);
+         
+                    // console.log("saving to storage: " + key + ", value: " + value);
+                    window.localStorage[key] = value;
+                },
+         
+                loadElementState : function($element) {
+                    // $element - single element!
+                    if (!this.storageEnabled) return;
+                    if (!$element.data("storage-noload")) {
+                        var key = this.getElementStorageKey($element);
+                        if (!key) {
+                            console.log("Cannot load element state:");
+                            console.log($element);
+                            return;
+                        }
+                        var originValue = this.getElementValue($element);
+                        var value = localStorage[key];
+                        if (value && value != originValue) { 
+                            // console.log("loading from storage: " + key + ", value: " + value);
+                            if ($element.is(":checkbox, :radio")) {
+                                if (value == "true") {
+                                    $element.attr("checked", true);
+                                } else {
+                                    $element.removeAttr("checked");
+                                }
+                                if ($.mobile && $element.checkboxradio) {
+                                    // Needed for UI update in jQuery Mobile
+                                    $element.checkboxradio( "refresh" );
+                                }
+                            } else if ($element.is("input, textarea, select")) {
+                                $element.val(value);
+                            }
+                            $element.trigger("change");
+                        }
+                    }
+                    $element.data("storage-loaded", true);
+                }
+            };
+         
+            // Force element loading
+            $.fn.loadState = function() {
+                $.each($(this), function() {
+                    InputStorage.loadElementState($(this));
+                });
+            };
+         
+            // Force element saving
+            $.fn.saveState = function() {
+                $.each($(this), function() {
+                    InputStorage.saveElementState($(this));
+                });
+            }
+         
+            $(function() {
+                // Enable data storage on page load
+                var $withState = $(".store-state").filter("input, textarea, select");
+                console.log($withState);
+                $withState.change(function() {
+                    if (!$(this).data("storage-loaded")) {
+                        // storage-loaded is set only after the loading process is finished.
+                        // Until then, don't respond.
+                        return;
+                    }
+                    InputStorage.storeElementState($(this));
+                    $withState.filter(":checkbox, :radio").each(function() {
+                        InputStorage.storeElementState($(this));
+                    });
+                });
+                $withState.each(function() {
+                    InputStorage.loadElementState($(this));
+                });
+                colorize();
+            });
+        }) (jQuery);
+    </script>
+
+</body>
+</html>

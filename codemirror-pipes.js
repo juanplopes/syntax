@@ -23,7 +23,8 @@ var syntax = function(usage, expr) {
             ('quarter'),
             ('semester'),
             ('yrs?|years?'),
-            ('items?')
+            ('items?'),
+            ('batch(e?s)?')
         ]);
 
         var filterKeywords = wordRegexp("" , [
@@ -70,7 +71,7 @@ var syntax = function(usage, expr) {
                 if (ch != '>') {
                     stream.eatWhile(/[_\w\d\.]/);
                     if (stream.peek() == '>')
-                        return "variable"; 
+                        return "variable";
                     else
                         return "comment";
                 } else {
@@ -88,9 +89,18 @@ var syntax = function(usage, expr) {
                 else
                     state.post_filter = true;
             }
-            if (ch == "\"" || ch == "'") {
-                state.tokenize = tokenLiteral(ch);
+            if (ch == "'") {
+                state.tokenize = tokenLiteral("'", 'string');
                 return state.tokenize(stream, state);
+            }
+            if (ch == "\"" || ch == "}") {
+              state.interpolating = false;
+              state.tokenize = tokenLiteral("\"", 'string');
+              return state.tokenize(stream, state);
+            }
+            if (ch == "{") {
+              state.tokenize = tokenLiteral('}', 'variable');
+              return state.tokenize(stream, state);
             }
             else if (/[{}\(\),;\[\]]/.test(ch)) {
                 curPunc = ch;
@@ -128,14 +138,14 @@ var syntax = function(usage, expr) {
                 var word = stream.current();
                 var last = state.last;
                 var number = state.number;
-                
+
                 state.last = word;
                 state.number = false;
                 if ((number || /last|current|every/.test(last)) && ops.test(word)) {
                     return "number";
                 } else if (((state.post_filter)?keywords:filterKeywords).test(word) || last == "over" && /last|current|all/.test(word)) {
                     return "keyword";
-                } else if (/at|the/.test(last) && /the|end/.test(word)) {
+                } else if (/^(at|the)$/.test(last) && /^(the|end)$/.test(word)) {
                     return "keyword";
                 } else if (stream.peek() == "(")
                     return "variable-2";
@@ -149,17 +159,19 @@ var syntax = function(usage, expr) {
             }
         }
 
-        function tokenLiteral(quote) {
+        function tokenLiteral(quote, rule) {
             return function (stream, state) {
                 var escaped = false, ch;
                 while ((ch = stream.next()) != null) {
-                    if (ch == quote && !escaped) {
+                    if ((ch == quote || /\"|\}/.test(quote) && ch=='$' && stream.eat("{")) && !escaped) {
+                        if (ch=='{')
+                          state.interpolating = true;
                         state.tokenize = tokenBase;
                         break;
                     }
                     escaped = !escaped && ch == "\\";
                 }
-                return "string";
+                return rule;
             };
         }
 
@@ -230,9 +242,8 @@ var syntax = function(usage, expr) {
             }
         };
     }
-}
+};
 
 CodeMirror.defineMode("pipes", syntax(false, false));
 CodeMirror.defineMode("pipes2", syntax(true, true));
 CodeMirror.defineMode("pipes-expr", syntax(false, true));
-

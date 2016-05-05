@@ -21,6 +21,12 @@
         .cm-s-default * {
             background-color:transparent;
         }
+        
+        .CodeMirror.cm-s-default {
+            background-color:transparent;
+            border: 1px solid black;
+            line-height: 1em;
+        }
     </style>
 </head>
 <body>
@@ -49,20 +55,34 @@
     
     <script>
         var colorize = function() {
+            window.CodeEditor.setOption('mode', $('#mode').val())
             CodeMirror.runMode($('#code').val(), $('#mode').val(), $('#output')[0]); 
             $('#code').trigger('change');
             $('#mode').trigger('change');
         };
     
         $(function() {
-            $('#code').on('keydown', _.debounce(colorize, 1000));
-            $('#mode').on('keydown', _.debounce(colorize, 1000));
+            var debounced = _.debounce(colorize, 200);
+            $('#code').on('keydown', debounced);
+            $('#mode').on('keydown', colorize);
             
             $('#code').keydown(function (e) {
-
               if (e.ctrlKey && e.keyCode == 13) {
                 colorize();
               }
+            });
+            
+            window.CodeEditor = CodeMirror.fromTextArea($('#code')[0], {
+                indentUnit: 4,
+                matchBrackets: true
+            });
+            $('#code').on('change', function() {
+                if ($('#code').val() != window.CodeEditor.getValue())
+                    window.CodeEditor.setValue($('#code').val());
+            });
+            window.CodeEditor.on('change', function() {
+                   $('#code').val(window.CodeEditor.getValue());
+                   debounced();
             });
             
             Object.keys(CodeMirror.mimeModes).concat(Object.keys(CodeMirror.modes)).forEach(function(v) {
